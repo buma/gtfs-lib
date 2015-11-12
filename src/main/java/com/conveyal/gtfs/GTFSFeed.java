@@ -1,34 +1,18 @@
 package com.conveyal.gtfs;
 
 import com.conveyal.gtfs.error.GTFSError;
-import com.conveyal.gtfs.model.Agency;
-import com.conveyal.gtfs.model.Calendar;
-import com.conveyal.gtfs.model.CalendarDate;
-import com.conveyal.gtfs.model.Fare;
-import com.conveyal.gtfs.model.FareAttribute;
-import com.conveyal.gtfs.model.FareRule;
-import com.conveyal.gtfs.model.FeedInfo;
-import com.conveyal.gtfs.model.Frequency;
-import com.conveyal.gtfs.model.Route;
-import com.conveyal.gtfs.model.Service;
-import com.conveyal.gtfs.model.Shape;
-import com.conveyal.gtfs.model.Stop;
-import com.conveyal.gtfs.model.StopTime;
-import com.conveyal.gtfs.model.Transfer;
-import com.conveyal.gtfs.model.Trip;
+import com.conveyal.gtfs.model.*;
 import com.conveyal.gtfs.validator.GTFSValidator;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.Fun;
-import org.mapdb.Fun.Tuple2;
+import org.mapdb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -45,11 +29,11 @@ public class GTFSFeed implements Cloneable {
 
     private static final Logger LOG = LoggerFactory.getLogger(GTFSFeed.class);
 
-    DB db = DBMaker.newTempFileDB()
+    DB db = DBMaker.tempFileDB()
             .transactionDisable()
-            .mmapFileEnable()
+            .fileMmapEnable()
             .asyncWriteEnable()
-            .compressionEnable()
+            .cacheHashTableEnable()
             // .cacheSize(1024 * 1024) this bloats memory consumption, as do in-memory maps below.
             .make(); // TODO db.close();
 
@@ -67,13 +51,25 @@ public class GTFSFeed implements Cloneable {
     public final Map<String, Trip>          trips          = Maps.newHashMap();
 
     /* Map from 2-tuples of (shape_id, shape_pt_sequence) to shape points */
-    public final ConcurrentNavigableMap<Tuple2, Shape> shapePoints = db.getTreeMap("shapes");
+    public final ConcurrentNavigableMap<Object[], Shape> shapePoints = db.treeMapCreate("shapes")
+            .keySerializer(new BTreeKeySerializer.ArrayKeySerializer(
+                    new Comparator[]{Fun.COMPARATOR, Fun.COMPARATOR},
+                    new Serializer[]{Serializer.STRING, Serializer.INTEGER}
+            ))
+            .valueSerializer(new Shape.Serializer())
+            .makeOrGet();
 
     /* This represents a bunch of views of the previous, one for each shape */
     public final Map<String, Map<Integer, Shape>> shapes = Maps.newHashMap();
 
     /* Map from 2-tuples of (trip_id, stop_sequence) to stoptimes. */
-    public final ConcurrentNavigableMap<Tuple2, StopTime> stop_times = db.getTreeMap("stop_times");
+    public final ConcurrentNavigableMap<Object[], StopTime> stop_times = db.treeMapCreate("stop_times")
+            .keySerializer(new BTreeKeySerializer.ArrayKeySerializer(
+                    new Comparator[]{Fun.COMPARATOR, Fun.COMPARATOR},
+                    new Serializer[]{Serializer.STRING, Serializer.INTEGER}))
+            .valueSerializer(new StopTime.Serializer())
+            .makeOrGet();
+
 
     /* A fare is a fare_attribute and all fare_rules that reference that fare_attribute. */
     public final Map<String, Fare> fares = Maps.newHashMap();
@@ -172,10 +168,10 @@ public class GTFSFeed implements Cloneable {
      * This is an efficient iteration over a tree map.
      */
     public Iterable<StopTime> getOrderedStopTimesForTrip (String trip_id) {
-        Map<Fun.Tuple2, StopTime> tripStopTimes =
+        Map<Object[], StopTime> tripStopTimes =
                 stop_times.subMap(
-                        Fun.t2(trip_id, null),
-                        Fun.t2(trip_id, Fun.HI)
+                        new Object[]{trip_id},
+                        new Object[]{trip_id, null}
                 );
         return tripStopTimes.values();
     }

@@ -1,14 +1,6 @@
 package com.conveyal.gtfs.model;
 
-import org.mapdb.Fun;
-import org.mapdb.Fun.Tuple2;
-
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 /**
@@ -20,12 +12,12 @@ public class ShapeMap implements Map<Integer, Shape> {
     private String shapeId;
     
     /** A map from (shape_id, shape_pt_sequence) to shapes */
-    private Map<Tuple2, Shape> wrapped;
+    private Map<Object[], Shape> wrapped;
 
-    public ShapeMap (ConcurrentNavigableMap<Tuple2, Shape> allShapes, String shapeId) {
+    public ShapeMap (ConcurrentNavigableMap<Object[], Shape> allShapes, String shapeId) {
         this.wrapped = allShapes.subMap(
-                new Tuple2 (shapeId, 0),
-                new Tuple2 (shapeId, Fun.HI)
+                new Object[] {shapeId},
+                new Object[] {shapeId, null}
                 );
         this.shapeId = shapeId;
     }
@@ -88,8 +80,8 @@ public class ShapeMap implements Map<Integer, Shape> {
     public Set<Integer> keySet() {
         Set<Integer> ret = new HashSet<Integer>(size());
 
-        for (Tuple2<String, Integer> t : wrapped.keySet()) {
-            ret.add(t.b);
+        for (Object[] t : wrapped.keySet()) {
+            ret.add((Integer) t[1]);
         }
 
         // Don't let the user modify the set as it won't do what they expect (change the map)
@@ -102,15 +94,15 @@ public class ShapeMap implements Map<Integer, Shape> {
 
         HashSet<Map.Entry<Integer, Shape>> ret = new HashSet<Map.Entry<Integer, Shape>>(size());
 
-        for (Map.Entry<Tuple2, Shape> e : wrapped.entrySet()) {
-            ret.add(new AbstractMap.SimpleImmutableEntry(e.getKey().b, e.getValue()));
+        for (Map.Entry<Object[], Shape> e : wrapped.entrySet()) {
+            ret.add(new AbstractMap.SimpleImmutableEntry(e.getKey()[1], e.getValue()));
         }
 
         return Collections.unmodifiableSet(ret);
     }
 
-    private Tuple2<String, Integer> makeKey (Object i) {
-        return new Tuple2<String, Integer> (this.shapeId, (Integer) i);
+    private Object[] makeKey (Object i) {
+        return new Object[]{this.shapeId, (Integer) i};
     }
 
 }

@@ -15,8 +15,8 @@ package com.conveyal.gtfs.model;
 
 import com.conveyal.gtfs.GTFSFeed;
 
-import org.mapdb.Fun;
-
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Iterator;
@@ -61,7 +61,7 @@ public class StopTime extends Entity implements Serializable {
             st.shape_dist_traveled = getDoubleField("shape_dist_traveled", false, 0D, Double.MAX_VALUE);
             st.timepoint      = getIntField("timepoint", false, 0, 1);
             st.feed = null; // this could circular-serialize the whole feed
-            feed.stop_times.put(new Fun.Tuple2(st.trip_id, st.stop_sequence), st);
+            feed.stop_times.put(new Object[]{st.trip_id, st.stop_sequence}, st);
 
             /*
               Check referential integrity without storing references. StopTime cannot directly reference Trips or
@@ -105,5 +105,39 @@ public class StopTime extends Entity implements Serializable {
         }
 
 
+    }
+
+    public static final class Serializer extends org.mapdb.Serializer<StopTime> implements Serializable {
+        @Override
+        public void serialize(DataOutput out, StopTime t) throws IOException {
+            out.writeUTF(t.trip_id);
+            out.writeInt(t.arrival_time);
+            out.writeInt(t.departure_time);
+            out.writeUTF(t.stop_id);
+            out.writeInt(t.stop_sequence);
+            out.writeUTF(t.stop_headsign);
+            out.writeInt(t.pickup_type);
+            out.writeInt(t.drop_off_type);
+            out.writeDouble(t.shape_dist_traveled);
+            out.writeInt(t.timepoint);
+        }
+
+        @Override
+        public StopTime deserialize(DataInput in, int available) throws IOException {
+            StopTime t = new StopTime();
+
+            t.trip_id = in.readUTF();
+            t.arrival_time = in.readInt();
+            t.departure_time =  in.readInt();
+            t.stop_id = in.readUTF();
+            t.stop_sequence = in.readInt();
+            t.stop_headsign = in.readUTF();
+            t.pickup_type = in.readInt();
+            t.drop_off_type = in.readInt();
+            t.shape_dist_traveled = in.readDouble();
+            t.timepoint = in.readInt();
+
+            return t;
+        }
     }
 }

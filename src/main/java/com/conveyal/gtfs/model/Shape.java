@@ -15,10 +15,11 @@ package com.conveyal.gtfs.model;
 
 import com.conveyal.gtfs.GTFSFeed;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Iterator;
-
-import org.mapdb.Fun.Tuple2;
 
 public class Shape extends Entity {
 
@@ -53,7 +54,7 @@ public class Shape extends Entity {
 
             Shape s = new Shape(shape_id, shape_pt_lat, shape_pt_lon, shape_pt_sequence, shape_dist_traveled);
             s.feed = null; // since we're putting this into MapDB, we don't want circular serialization
-            feed.shapePoints.put(new Tuple2<String, Integer>(s.shape_id, s.shape_pt_sequence), s);
+            feed.shapePoints.put(new Object[]{s.shape_id, s.shape_pt_sequence}, s);
 
             if (!feed.shapes.containsKey(s.shape_id)) {
                 feed.shapes.put(s.shape_id, new ShapeMap(feed.shapePoints, s.shape_id));
@@ -87,4 +88,28 @@ public class Shape extends Entity {
             return feed.shapePoints.values().iterator();
         }
     }
+
+    public final static class Serializer extends org.mapdb.Serializer<Shape> implements Serializable {
+
+        @Override
+        public void serialize(DataOutput out, Shape v) throws IOException {
+            out.writeUTF(v.shape_id);
+            out.writeDouble(v.shape_pt_lat);
+            out.writeDouble(v.shape_pt_lon);
+            out.writeInt(v.shape_pt_sequence);
+            out.writeDouble(v.shape_dist_traveled);
+        }
+
+        @Override
+        public Shape deserialize(DataInput in, int available) throws IOException {
+            return new Shape(
+                    in.readUTF(),
+                    in.readDouble(),
+                    in.readDouble(),
+                    in.readInt(),
+                    in.readDouble()
+            );
+        }
+    }
+
 }
